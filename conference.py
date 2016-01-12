@@ -111,55 +111,6 @@ class ConferenceApi(remote.Service):
 
 # - - - Session objects - - - - - - - - - - - - - - - - - -
 
-    @endpoints.method(SessionForm, SessionForm, path='createSession',
-            http_method='POST', name='createSession')
-    def createSessions(self, request):
-        """Create new session for a conference."""
-        return self._createSessionObject(request)
-
-
-    @endpoints.method(CONF_GET_REQUEST, SessionForm,
-            path='conference/{websafeConferenceKey}/sessions',
-            http_method='GET', name='getConferenceSessions')
-    def getConferenceSessions(self, request):
-        """Return requested conference's sessions (by websafeConferenceKey)."""
-        # get Conference object from request; bail if not found
-        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        if not conf:
-            raise endpoints.NotFoundException(
-                'No conference found with key: %s' % request.websafeConferenceKey)
-        sessions =Session.query()
-        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
-        # return ConferenceForm
-        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
-
-    @endpoints.method(SESH_GET_BY_TYPE_REQUEST, SessionForm,
-            path='conference/{websafeConferenceKey}/session/{typeOfSession}',
-            http_method='GET', name='getConferenceSessionsByType')
-    def getConferenceSessionsByType(self, request):
-        """Return requested conference's sessions of a given type(by websafeConferenceKey)."""
-        # get Conference object from request; bail if not found
-        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        if not conf:
-            raise endpoints.NotFoundException(
-                'No conference found with key: %s' % request.websafeConferenceKey)
-        sessions = Session.query()
-        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey, Session.typeOfSession == request.typeOfSession)
-        # return ConferenceForm
-        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
-
-
-   @endpoints.method(SESH_GET_BY_SPEAKER_REQUEST, SessionForm,
-            path='sessions/{speaker}',
-            http_method='GET', name='getSessionsBySpeaker')
-    def getSessionsBySpeaker(self, request):
-        """Return sessions with given speaker."""
-
-        sessions = Session.query()
-        sessions = sessions.filter(Session.speaker == request.speaker)
-        # return ConferenceForm
-        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
-
     def _copySessionToForm(self, sesh):
         """Copy relevant fields from Session to SessionForm."""
         sf = SessionForm()
@@ -223,6 +174,109 @@ class ConferenceApi(remote.Service):
             url='/tasks/send_confirmation_email'
         )
         return request
+
+    @endpoints.method(SessionForm, SessionForm, path='createSession',
+            http_method='POST', name='createSession')
+    def createSessions(self, request):
+        """Create new session for a conference."""
+        return self._createSessionObject(request)
+
+
+    @endpoints.method(CONF_GET_REQUEST, SessionForm,
+            path='conference/{websafeConferenceKey}/sessions',
+            http_method='GET', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        """Return requested conference's sessions (by websafeConferenceKey)."""
+        # get Conference object from request; bail if not found
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+        sessions =Session.query()
+        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        # return ConferenceForm
+        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
+
+    @endpoints.method(SESH_GET_BY_TYPE_REQUEST, SessionForm,
+            path='conference/{websafeConferenceKey}/session/{typeOfSession}',
+            http_method='GET', name='getConferenceSessionsByType')
+    def getConferenceSessionsByType(self, request):
+        """Return requested conference's sessions of a given type(by websafeConferenceKey)."""
+        # get Conference object from request; bail if not found
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+        sessions = Session.query()
+        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey, Session.typeOfSession == request.typeOfSession)
+        # return ConferenceForm
+        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
+
+
+   @endpoints.method(SESH_GET_BY_SPEAKER_REQUEST, SessionForm,
+            path='sessions/{speaker}',
+            http_method='GET', name='getSessionsBySpeaker')
+    def getSessionsBySpeaker(self, request):
+        """Return sessions with given speaker."""
+
+        sessions = Session.query()
+        sessions = sessions.filter(Session.speaker == request.speaker)
+        # return ConferenceForm
+        return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
+
+    @endpoints.method(SESH_GET_REQUEST, SessionForm,
+        path='addSessionToWishList/{websafeSessionKey}'
+        http_method="POST", name='addSessionToWishList')
+    def addSessionToWishList(self, request):
+        """Add session to User's wishlist"""
+        # get the session with the given key
+        s_key = request.websafeConferenceKey
+        session = ndb.Key(urlsafe=s_key).get()
+        # check if the session exists
+        if not session:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % s_key)
+        profile = self._getProfileFromUser()
+        if not profile:
+            raise endpoints.BadRequestException('No profile for user')
+        if s_key not in profile.sessionKeysInWishList:
+            profile.sessionKeysInWishList.append(s_key)
+            profile.put()
+        return self._copySessionToForm(session)
+
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+            path='wishlist',
+            http_method='GET', name='getSessionsInWishList')
+    def getSessionsInWishList(self, request):
+        """Get list of sessions that user has added to their wishlist."""
+        prof = self._getProfileFromUser() # get user Profile
+        sesh_keys = [ndb.Key(urlsafe=wssk) for wssk in prof.sessionKeysInWishList]
+        sessions = ndb.get_multi(sesh_keys)
+
+        # return set of ConferenceForm objects per Conference
+        return SessionForms(items=[self._copySessionToForm(sesh) for sesh in sessions])
+
+    @endpoints.method(SESH_GET_REQUEST, SessionForm,
+        path='deleteSessionInWishList/{websafeSessionKey}'
+        http_method="POST", name='deleteSessionInWishList')
+    def deleteSessionInWishList(self, request):
+        """remove session from User's wishlist"""
+        # get the session with the given key
+        s_key = request.websafeConferenceKey
+        session = ndb.Key(urlsafe=s_key).get()
+        # check if the session exists
+        if not session:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % s_key)
+        profile = self._getProfileFromUser()
+        if not profile:
+            raise endpoints.BadRequestException('No profile for user')
+        if s_key in profile.sessionKeysInWishList:
+            profile.sessionKeysInWishList.remove(s_key)
+            profile.put()
+        return self._copySessionToForm(session)
+
+
 
 
 # - - - Conference objects - - - - - - - - - - - - - - - - -
