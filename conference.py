@@ -155,10 +155,59 @@ class ConferenceApi(remote.Service):
                     setattr(sf, field.name, str(getattr(sesh, field.name)))
                 else:
                     setattr(sf, field.name, getattr(sesh, field.name))
-            elif field.name == "sessionSafeKey":
+            elif field.name == "websafeSessionKey":
                 setattr(sf, field.name, sesh.key.urlsafe())
         sf.check_initialized()
         return sf
+
+    def _createSessionObject(self, request):
+        """Create or update Session object, returning SessionForm/request."""
+        # preload necessary data items
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        if not request.name:
+            raise endpoints.BadRequestException("Conference 'name' field required")
+
+        # check if conf exists given websafeConfKey
+        # get conference; check that it exists
+        wsck = request.websafeConferenceKey
+        conf = ndb.Key(urlsafe=wsck).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % wsck)
+
+        if conf.organizerUserId != user_id
+            raise endpoints.ForbiddenException('Only the owner of the conference can make sessions')
+        # copy ConferenceForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+
+
+        # convert dates from strings to Date objects; set month based on start_date
+        if data['date']:
+            data['date'] = datetime.strptime(data['date'][:10], "%Y-%m-%d").date()
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime'][:10], "%H, %M").time()
+
+
+        # generate Profile Key based on user ID and Conference
+        # ID based on Profile key get Conference key from ID
+        s_id = Session.allocate_ids(size=1, parent=c_key)[0]
+        s_key = ndb.Key(Session, s_id, parent=c_key)
+        data['key'] = s_key
+        data['websafeConferenceKey'] = wsck
+        del data['websafeSessionKey']
+
+        # create Conference, send email to organizer confirming
+        # creation of Conference & return (modified) ConferenceForm
+        Session(**data).put()
+        taskqueue.add(params={'email': user.email(),
+            'conferenceInfo': repr(request)},
+            url='/tasks/send_confirmation_email'
+        )
+        return request
 
 
 # - - - Conference objects - - - - - - - - - - - - - - - - -

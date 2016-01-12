@@ -128,6 +128,6 @@ class SessionForm(messages.Message):
     typeOfSession   = messages.StringField(5, repeated=True)
     date            = messages.StringField(6)
     startTime       = messages.IntegerField(7)
-    sessionSafeKey      = messages.StringField(8)
+    websafeSessionKey      = messages.StringField(8)
     websafeConferenceKey = messages.StringField(9)
 
