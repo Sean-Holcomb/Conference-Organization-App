@@ -23,6 +23,22 @@ App Engine application for the Udacity training course.
 1. (Optional) Generate your client library(ies) with [the endpoints tool][6].
 1. Deploy your application.
 
+## Tasks
+### Task 1: Add Sessions to a Conference
+To implement sessions to the app, I modeled the session classes and methods after the extant Conference classes and methods. The some of the support methods already in place were useful in this regard but others had to be redesigned to fit my needs, in general sessions are much more simple than confrences so it was straight forward to proccess their contents.
+
+### Task 2: Add Sessions to User Wishlist
+Adding wish lists was relatively simple. All that needed to be done was to add a repeated StringField to the Profile Class the required methods
+
+### Task 3: Work on indexes and queries
+For the two addittional querys I included getSessionAttendees(websafeSessionKey) and getConferenceAttendees(websafeConferenceKey). I chose these because for the three classes Conference, Profile and Session there was a way to get Sessions of Conferences from a Profile, and a way to get Sessions from a Conference, but no way to get Profiles from a Conference or Session.
+
+Question: Let’s say that you don't like workshops and you don't like sessions after 7 pm. How would you handle a query for all non-workshop sessions before 7 pm? What is the problem for implementing this query? What ways to solve it did you think of?
+
+The problem is that Google datastore API doesn't support multiple inequality filters on a single query(!= and >=). The way I would solve it is to make two queries and compare the results.
+
+### Task 4: Add a Task
+
 
 [1]: https://developers.google.com/appengine
 [2]: http://python.org

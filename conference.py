@@ -276,6 +276,21 @@ class ConferenceApi(remote.Service):
             profile.put()
         return self._copySessionToForm(session)
 
+    @endpoints.method(SESH_GET_REQUEST, ProfileForms,
+            path='session/{websafeSessionKey}/attendees',
+            http_method='GET', name='getSessionAttendees')
+    def getSessionAttendees(self, request):
+        """Return requested session's attendees (by websafeSessionKey)."""
+        # get Session object from request; bail if not found
+        sesh = ndb.Key(urlsafe=request.websafeSessionKey).get()
+        if not sesh:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % request.websafeSessionKey)
+        attendees =Profile.query()
+        attendees = attendees.filter(request.websafeSessionKey in attendee.sessionKeysInWishList for attendee in attendees)
+        # return ConferenceForm
+        return ProfileForms(items=[self._copyProfileToForm(attendee) for attendee in attendees])
+
 
 
 
@@ -512,6 +527,21 @@ class ConferenceApi(remote.Service):
                 items=[self._copyConferenceToForm(conf, names[conf.organizerUserId]) for conf in \
                 conferences]
         )
+
+    @endpoints.method(CONF_GET_REQUEST, ProfileForms,
+            path='conference/{websafeConferenceKey}/attendees',
+            http_method='GET', name='getConferenceAttendees')
+    def getConferenceAttendees(self, request):
+        """Return requested conference's attendees (by websafeConferenceKey)."""
+        # get Conference object from request; bail if not found
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+        attendees =Profile.query()
+        attendees = attendees.filter(request.websafeConferenceKey in attendee.conferenceKeysToAttend for attendee in attendees)
+        # return ConferenceForm
+        return ProfileForms(items=[self._copyProfileToForm(attendee) for attendee in attendees])
 
 
 # - - - Profile objects - - - - - - - - - - - - - - - - - - -
