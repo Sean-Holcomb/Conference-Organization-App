@@ -27,6 +27,9 @@ App Engine application for the Udacity training course.
 ### Task 1: Add Sessions to a Conference
 To implement sessions to the app, I modeled the session classes and methods after the extant Conference classes and methods. The some of the support methods already in place were useful in this regard but others had to be redesigned to fit my needs, in general sessions are much more simple than confrences so it was straight forward to proccess their contents.
 
+#### Extra Credit
+I decided to keep the speaker entity simple, becasue linking it to several factors would have been convoluted and pointless. All it really needs is a list of sessions that it will be speaking at. I decided not to link it to a profile because there is no garentee that a speaker would have a profile and it wouldn't add any functionality other than blocking them from adding sessions that they were speaking at to their wish list.
+
 ### Task 2: Add Sessions to User Wishlist
 Adding wish lists was relatively simple. All that needed to be done was to add a repeated StringField to the Profile Class the required methods
 
@@ -36,6 +39,9 @@ For the two addittional querys I included getSessionAttendees(websafeSessionKey)
 Question: Let’s say that you don't like workshops and you don't like sessions after 7 pm. How would you handle a query for all non-workshop sessions before 7 pm? What is the problem for implementing this query? What ways to solve it did you think of?
 
 The problem is that Google datastore API doesn't support multiple inequality filters on a single query(!= and >=). The way I would solve it is to make two queries and compare the results.
+
+#### Extra Credit
+I implemented this ability by checking queries for multiple inequality filters if they were there, The query is done by a seperate method that makes a query for each filter then
 
 ### Task 4: Add a Task
 

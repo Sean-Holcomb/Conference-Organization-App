@@ -40,6 +40,19 @@ class ProfileForm(messages.Message):
     mainEmail = messages.StringField(2)
     teeShirtSize = messages.EnumField('TeeShirtSize', 3)
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
+    sessionKeysInWishList = messages.StringField(5, repeated=True)
+
+class Speaker(ndb.Model):
+    """Speaker -- speaker object"""
+    name = ndb.StringProperty(required=True)
+    bio = ndb.StringProperty()
+    speakerSessionKeys = ndb.StringProperty(repeated=True)
+
+class SpeakerForm(messages.Message):
+    """SpeakerForm -- Speaker outbound form message"""
+    name = messages.StringField(1, required=True)
+    bio = messages.StringField(2)
+    speakerSessionKeys = messages.StringField(3, repeated=True)
 
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
