@@ -47,6 +47,7 @@ from utils import getUserId
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+MEMCACHE_FEATURED_SPEAKER_KEY = "SPEAKER_KEY"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -157,6 +158,11 @@ class ConferenceApi(remote.Service):
         if data['startTime']:
             data['startTime'] = datetime.strptime(data['startTime'][:10], "%H, %M").time()
 
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey == wsck)
+        for sesh in q:
+            if sesh.speaker == request.speaker:
+                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY+wsck, request.speaker)
 
         # generate Profile Key based on user ID and Conference
         # ID based on Conference key get Session key from ID
@@ -514,8 +520,15 @@ class ConferenceApi(remote.Service):
         # Build a list of queries for each inequality filter
         for inequal in inequality_filters:
             queries[counter] = Conference.query()
-            q = q.order(ndb.GenericProperty(inequality_filter))
-            q = q.order(Conference.name)
+            queries[counter] = queries[counter].order(ndb.GenericProperty(inequality_filter))
+            queries[counter] = queries[counter].order(Conference.name)
+            formatted_query = ndb.query.FilterNode(inequal["field"], inequal["operator"], inequal["value"])
+            queries[counter] = queries[counter].filter(formatted_query)
+            for filtr in filters:
+            if filtr["field"] in ["month", "maxAttendees"]:
+                filtr["value"] = int(filtr["value"])
+            formatted_query = ndb.query.FilterNode(filtr["field"], filtr["operator"], filtr["value"])
+            queries[counter] = queries[counter].filter(formatted_query)
             counter += 1
 
         # Find Conference objects that are in all queries and add them to a list to be returned
@@ -617,6 +630,16 @@ class ConferenceApi(remote.Service):
         attendees = attendees.filter(request.websafeConferenceKey in attendee.conferenceKeysToAttend for attendee in attendees)
         # return ConferenceForm
         return ProfileForms(items=[self._copyProfileToForm(attendee) for attendee in attendees])
+
+    @endpoints.method(CONF_GET_REQUEST, StringMessage,
+                      path='conference/{websafeConferenceKey}/featuredSpeaker',
+                      http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Get featured speaker for conference"""
+        featuredSpeaker = memcache.get(MEMCACHE_FEATURED_SPEAKER_KEY+request.websafeConferenceKey)
+        if not featuredSpeaker:
+            featuredSpeaker = ""
+        return StringMessage(data=featuredSpeaker)
 
 
 # - - - Profile objects - - - - - - - - - - - - - - - - - - -
