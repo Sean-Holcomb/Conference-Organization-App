@@ -159,15 +159,15 @@ class ConferenceApi(remote.Service):
 
 
         # generate Profile Key based on user ID and Conference
-        # ID based on Profile key get Conference key from ID
-        s_id = Session.allocate_ids(size=1, parent=c_key)[0]
-        s_key = ndb.Key(Session, s_id, parent=c_key)
+        # ID based on Conference key get Session key from ID
+        s_id = Session.allocate_ids(size=1, parent=wsck)[0]
+        s_key = ndb.Key(Session, s_id, parent=wsck)
         data['key'] = s_key
         data['websafeConferenceKey'] = wsck
         del data['websafeSessionKey']
 
-        # create Conference, send email to organizer confirming
-        # creation of Conference & return (modified) ConferenceForm
+        # create Session, send email to organizer confirming
+        # creation of Session & return (modified) SessionForm
         Session(**data).put()
         taskqueue.add(params={'email': user.email(),
             'conferenceInfo': repr(request)},
@@ -194,7 +194,7 @@ class ConferenceApi(remote.Service):
                 'No conference found with key: %s' % request.websafeConferenceKey)
         sessions =Session.query()
         sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
-        # return ConferenceForm
+        # return SessionForm
         return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
 
     @endpoints.method(SESH_GET_BY_TYPE_REQUEST, SessionForm,
@@ -209,7 +209,7 @@ class ConferenceApi(remote.Service):
                 'No conference found with key: %s' % request.websafeConferenceKey)
         sessions = Session.query()
         sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey, Session.typeOfSession == request.typeOfSession)
-        # return ConferenceForm
+        # return SessionForm
         return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
 
 
@@ -221,7 +221,7 @@ class ConferenceApi(remote.Service):
 
         sessions = Session.query()
         sessions = sessions.filter(Session.speaker == request.speaker)
-        # return ConferenceForm
+        # return SessionForms
         return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
 
     @endpoints.method(SESH_GET_REQUEST, SessionForm,
@@ -253,7 +253,7 @@ class ConferenceApi(remote.Service):
         sesh_keys = [ndb.Key(urlsafe=wssk) for wssk in prof.sessionKeysInWishList]
         sessions = ndb.get_multi(sesh_keys)
 
-        # return set of ConferenceForm objects per Conference
+        # return set of SessionForm objects per Profile
         return SessionForms(items=[self._copySessionToForm(sesh) for sesh in sessions])
 
     @endpoints.method(SESH_GET_REQUEST, SessionForm,
@@ -286,9 +286,9 @@ class ConferenceApi(remote.Service):
         if not sesh:
             raise endpoints.NotFoundException(
                 'No session found with key: %s' % request.websafeSessionKey)
-        attendees =Profile.query()
+        attendees = Profile.query()
         attendees = attendees.filter(request.websafeSessionKey in attendee.sessionKeysInWishList for attendee in attendees)
-        # return ConferenceForm
+        # return ProfileForms
         return ProfileForms(items=[self._copyProfileToForm(attendee) for attendee in attendees])
 
 
@@ -459,6 +459,8 @@ class ConferenceApi(remote.Service):
     def _getQuery(self, request):
         """Return formatted query from the submitted filters."""
         q = Conference.query()
+        if _checkMultiInequality(request):
+            return _getMultiQuery(request)
         inequality_filter, filters = self._formatFilters(request.filters)
 
         # If exists, sort on inequality filter first
@@ -502,6 +504,79 @@ class ConferenceApi(remote.Service):
 
             formatted_filters.append(filtr)
         return (inequality_field, formatted_filters)
+
+    def _getMultiQuery(self, request):
+        """Return formatted query from the submitted filters with multiple inequalities."""
+        inequality_filters, filters = self._formatMultiFilters(request.filters)
+        queries = []
+        counter = 0
+        rQuery = []
+        # Build a list of queries for each inequality filter
+        for inequal in inequality_filters:
+            queries[counter] = Conference.query()
+            q = q.order(ndb.GenericProperty(inequality_filter))
+            q = q.order(Conference.name)
+            counter += 1
+
+        # Find Conference objects that are in all queries and add them to a list to be returned
+        for conf in queries[0]:
+            isThere = False
+            for query in queries:
+                if conf in query:
+                    isThere=True
+                    continue
+                else:
+                    isThere=False
+                    break
+            if isThere:
+                rQuery.append(conf)
+
+        return rQuery
+
+    def _formatMultiFilters(self, filters):
+        """Parse, check validity and format user supplied filters."""
+        formatted_filters = []
+        inequality_filters = []
+
+        for f in filters:
+            filtr = {field.name: getattr(f, field.name) for field in f.all_fields()}
+
+            try:
+                filtr["field"] = FIELDS[filtr["field"]]
+                filtr["operator"] = OPERATORS[filtr["operator"]]
+            except KeyError:
+                raise endpoints.BadRequestException("Filter contains invalid field or operator.")
+
+            # Every operation except "=" is an inequality
+            if filtr["operator"] != "=":
+                inequality_filters.append(filtr)
+            else:
+                formatted_filters.append(filtr)
+        return (inequality_filters, formatted_filters)
+
+    def _checkMultiInequality(self, filters):
+        """Check if there is more than one inequality filter in a query"""
+        inequality_field = None
+        for f in filters:
+            filtr = {field.name: getattr(f, field.name) for field in f.all_fields()}
+
+            try:
+                filtr["field"] = FIELDS[filtr["field"]]
+                filtr["operator"] = OPERATORS[filtr["operator"]]
+            except KeyError:
+                raise endpoints.BadRequestException("Filter contains invalid field or operator.")
+
+            # Every operation except "=" is an inequality
+            if filtr["operator"] != "=":
+                # check if inequality operation has been used in previous filters
+                # disallow the filter if inequality was performed on a different field before
+                # track the field on which the inequality operation is performed
+                if inequality_field and inequality_field != filtr["field"]:
+                    return True
+                else:
+                    inequality_field = filtr["field"]
+        return false
+
 
 
     @endpoints.method(ConferenceQueryForms, ConferenceForms,
