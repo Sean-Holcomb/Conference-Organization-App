@@ -6,6 +6,10 @@ threadsafe: yes
 
 handlers:       # static then dynamic
 
+- url: /_ah/spi/.*
+  script: conference.api
+  secure: always
+
 - url: /favicon\.ico
   static_files: favicon.ico
   upload: favicon\.ico
@@ -35,10 +39,6 @@ handlers:       # static then dynamic
 
 - url: /crons/set_announcement
   script: main.app
-
-- url: /_ah/spi/.*
-  script: conference.api
-  secure: always
 
 libraries:
 

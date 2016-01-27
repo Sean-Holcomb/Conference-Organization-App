@@ -14,7 +14,7 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
 from datetime import datetime
-
+import logging
 import endpoints
 from protorpc import messages
 from protorpc import message_types
@@ -28,6 +28,7 @@ from models import ConflictException
 from models import Profile
 from models import ProfileMiniForm
 from models import ProfileForm
+from models import ProfileForms
 from models import StringMessage
 from models import BooleanMessage
 from models import Conference
@@ -36,10 +37,15 @@ from models import ConferenceForms
 from models import ConferenceQueryForm
 from models import ConferenceQueryForms
 from models import TeeShirtSize
+from models import Speaker
+from models import SpeakerForm
+from models import Session
+from models import SessionForm
+from models import SessionForms
+
 
 from settings import WEB_CLIENT_ID
-from settings import ANDROID_CLIENT_ID
-from settings import IOS_CLIENT_ID
+
 from settings import ANDROID_AUDIENCE
 
 from utils import getUserId
@@ -56,7 +62,7 @@ DEFAULTS = {
     "city": "Default City",
     "maxAttendees": 0,
     "seatsAvailable": 0,
-    "topics": [ "Default", "Topic" ],
+    "topics": ["Default", "Topic"]
 }
 
 OPERATORS = {
@@ -68,36 +74,36 @@ OPERATORS = {
             'NE':   '!='
             }
 
-FIELDS =    {
+FIELDS = {
             'CITY': 'city',
             'TOPIC': 'topics',
             'MONTH': 'month',
-            'MAX_ATTENDEES': 'maxAttendees',
+            'MAX_ATTENDEES': 'maxAttendees'
             }
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
-    websafeConferenceKey=messages.StringField(1),
+    websafeConferenceKey=messages.StringField(1)
 )
 
 CONF_POST_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
-    websafeConferenceKey=messages.StringField(1),
+    websafeConferenceKey=messages.StringField(1)
 )
 
-SESH_GET_REQUEST = endpoints.ResourceCOntainer(
-    message_typess.VoidMessage,
+SESH_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
     websafeSessionKey=messages.StringField(1)
 )
 
-SESH_GET_BY_TYPE_REQUEST= endpoints.ResourceCOntainer(
-    message_typess.VoidMessage,
-    typeOfSession=messages.StringField(1)
+SESH_GET_BY_TYPE_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    typeOfSession=messages.StringField(1),
     websafeConferenceKey=messages.StringField(2)
 )
 
-SESH_GET_BY_SPEAKER_REQUEST= endpoints.ResourceCOntainer(
-    message_typess.VoidMessage,
+SESH_GET_BY_SPEAKER_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
     speaker=messages.StringField(1)
 )
 
@@ -105,7 +111,8 @@ SESH_GET_BY_SPEAKER_REQUEST= endpoints.ResourceCOntainer(
 
 
 @endpoints.api(name='conference', version='v1', audiences=[ANDROID_AUDIENCE],
-    allowed_client_ids=[WEB_CLIENT_ID, API_EXPLORER_CLIENT_ID, ANDROID_CLIENT_ID, IOS_CLIENT_ID],
+    allowed_client_ids=[
+        WEB_CLIENT_ID, API_EXPLORER_CLIENT_ID],
     scopes=[EMAIL_SCOPE])
 class ConferenceApi(remote.Service):
     """Conference API v0.1"""
@@ -136,7 +143,8 @@ class ConferenceApi(remote.Service):
         user_id = getUserId(user)
 
         if not request.name:
-            raise endpoints.BadRequestException("Conference 'name' field required")
+            raise endpoints.BadRequestException(
+                "Conference 'name' field required")
 
         # check if conf exists given websafeConfKey
         # get conference; check that it exists
@@ -146,23 +154,28 @@ class ConferenceApi(remote.Service):
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % wsck)
 
-        if conf.organizerUserId != user_id
-            raise endpoints.ForbiddenException('Only the owner of the conference can make sessions')
+        if conf.organizerUserId != user_id:
+            raise endpoints.ForbiddenException(
+                'Only the owner of the conference can make sessions')
         # copy ConferenceForm/ProtoRPC Message into dict
-        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        data = {field.name: getattr(request, field.name)
+                                    for field in request.all_fields()}
 
-
-        # convert dates from strings to Date objects; set month based on start_date
+        # convert dates from strings to Date objects; set month based on
+        # start_date
         if data['date']:
-            data['date'] = datetime.strptime(data['date'][:10], "%Y-%m-%d").date()
+            data['date'] = datetime.strptime(
+                data['date'][:10], "%Y-%m-%d").date()
         if data['startTime']:
-            data['startTime'] = datetime.strptime(data['startTime'][:10], "%H, %M").time()
+            data['startTime'] = datetime.strptime(
+                data['startTime'][:10], "%H, %M").time()
 
         q = Session.query()
         q = q.filter(Session.websafeConferenceKey == wsck)
         for sesh in q:
             if sesh.speaker == request.speaker:
-                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY+wsck, request.speaker)
+                memcache.set(
+                    MEMCACHE_FEATURED_SPEAKER_KEY+wsck, request.speaker)
 
         # generate Profile Key based on user ID and Conference
         # ID based on Conference key get Session key from ID
@@ -187,7 +200,6 @@ class ConferenceApi(remote.Service):
         """Create new session for a conference."""
         return self._createSessionObject(request)
 
-
     @endpoints.method(CONF_GET_REQUEST, SessionForm,
             path='conference/{websafeConferenceKey}/sessions',
             http_method='GET', name='getConferenceSessions')
@@ -198,8 +210,9 @@ class ConferenceApi(remote.Service):
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)
-        sessions =Session.query()
-        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        sessions = Session.query()
+        sessions = sessions.filter(
+            Session.websafeConferenceKey == request.websafeConferenceKey)
         # return SessionForm
         return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
 
@@ -214,12 +227,13 @@ class ConferenceApi(remote.Service):
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)
         sessions = Session.query()
-        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey, Session.typeOfSession == request.typeOfSession)
+        sessions = sessions.filter(
+            Session.websafeConferenceKey == request.websafeConferenceKey, Session.typeOfSession == request.typeOfSession)
         # return SessionForm
         return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
 
 
-   @endpoints.method(SESH_GET_BY_SPEAKER_REQUEST, SessionForm,
+    @endpoints.method(SESH_GET_BY_SPEAKER_REQUEST, SessionForm,
             path='sessions/{speaker}',
             http_method='GET', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
@@ -231,7 +245,7 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(session) for session in sessions])
 
     @endpoints.method(SESH_GET_REQUEST, SessionForm,
-        path='addSessionToWishList/{websafeSessionKey}'
+        path='addSessionToWishList/{websafeSessionKey}',
         http_method="POST", name='addSessionToWishList')
     def addSessionToWishList(self, request):
         """Add session to User's wishlist"""
@@ -263,7 +277,7 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(sesh) for sesh in sessions])
 
     @endpoints.method(SESH_GET_REQUEST, SessionForm,
-        path='deleteSessionInWishList/{websafeSessionKey}'
+        path='deleteSessionInWishList/{websafeSessionKey}',
         http_method="POST", name='deleteSessionInWishList')
     def deleteSessionInWishList(self, request):
         """remove session from User's wishlist"""
@@ -461,12 +475,32 @@ class ConferenceApi(remote.Service):
             items=[self._copyConferenceToForm(conf, getattr(prof, 'displayName')) for conf in confs]
         )
 
+    def _checkMultiInequality(self, request):
+        """Check if there is more than one inequality filter in a query"""
+        inequality_field = None
+        for f in request.filters:
+            filtr = {field.name: getattr(f, field.name) for field in f.all_fields()}
+
+            try:
+                filtr["field"] = FIELDS[filtr["field"]]
+                filtr["operator"] = OPERATORS[filtr["operator"]]
+            except KeyError:
+                raise endpoints.BadRequestException("Filter contains invalid field or operator.")
+
+            # Every operation except "=" is an inequality
+            if filtr["operator"] != "=":
+                # check if inequality operation has been used in previous filters
+                # disallow the filter if inequality was performed on a different field before
+                # track the field on which the inequality operation is performed
+                if inequality_field and inequality_field != filtr["field"]:
+                    return True
+                else:
+                    inequality_field = filtr["field"]
+        return False
 
     def _getQuery(self, request):
         """Return formatted query from the submitted filters."""
         q = Conference.query()
-        if _checkMultiInequality(request):
-            return _getMultiQuery(request)
         inequality_filter, filters = self._formatFilters(request.filters)
 
         # If exists, sort on inequality filter first
@@ -519,27 +553,32 @@ class ConferenceApi(remote.Service):
         rQuery = []
         # Build a list of queries for each inequality filter
         for inequal in inequality_filters:
-            queries[counter] = Conference.query()
-            queries[counter] = queries[counter].order(ndb.GenericProperty(inequality_filter))
+            if inequal["field"] in ["month", "maxAttendees"]:
+                    inequal["value"] = int(inequal["value"])
+            queries.insert(counter, Conference.query())
+            queries[counter] = queries[counter].order(ndb.GenericProperty(inequal["field"]))
             queries[counter] = queries[counter].order(Conference.name)
             formatted_query = ndb.query.FilterNode(inequal["field"], inequal["operator"], inequal["value"])
             queries[counter] = queries[counter].filter(formatted_query)
             for filtr in filters:
-            if filtr["field"] in ["month", "maxAttendees"]:
-                filtr["value"] = int(filtr["value"])
-            formatted_query = ndb.query.FilterNode(filtr["field"], filtr["operator"], filtr["value"])
-            queries[counter] = queries[counter].filter(formatted_query)
+                if filtr["field"] in ["month", "maxAttendees"]:
+                    filtr["value"] = int(filtr["value"])
+                formatted_query = ndb.query.FilterNode(filtr["field"], filtr["operator"], filtr["value"])
+                queries[counter] = queries[counter].filter(formatted_query)
             counter += 1
 
         # Find Conference objects that are in all queries and add them to a list to be returned
         for conf in queries[0]:
             isThere = False
             for query in queries:
-                if conf in query:
-                    isThere=True
+                isThere = False
+                for check in query:
+                    if conf.name == check.name:
+                        isThere = True
+                        break
+                if isThere:
                     continue
                 else:
-                    isThere=False
                     break
             if isThere:
                 rQuery.append(conf)
@@ -567,38 +606,16 @@ class ConferenceApi(remote.Service):
                 formatted_filters.append(filtr)
         return (inequality_filters, formatted_filters)
 
-    def _checkMultiInequality(self, filters):
-        """Check if there is more than one inequality filter in a query"""
-        inequality_field = None
-        for f in filters:
-            filtr = {field.name: getattr(f, field.name) for field in f.all_fields()}
-
-            try:
-                filtr["field"] = FIELDS[filtr["field"]]
-                filtr["operator"] = OPERATORS[filtr["operator"]]
-            except KeyError:
-                raise endpoints.BadRequestException("Filter contains invalid field or operator.")
-
-            # Every operation except "=" is an inequality
-            if filtr["operator"] != "=":
-                # check if inequality operation has been used in previous filters
-                # disallow the filter if inequality was performed on a different field before
-                # track the field on which the inequality operation is performed
-                if inequality_field and inequality_field != filtr["field"]:
-                    return True
-                else:
-                    inequality_field = filtr["field"]
-        return false
-
-
-
     @endpoints.method(ConferenceQueryForms, ConferenceForms,
             path='queryConferences',
             http_method='POST',
             name='queryConferences')
     def queryConferences(self, request):
         """Query for conferences."""
-        conferences = self._getQuery(request)
+        if self._checkMultiInequality(request):
+            conferences = self._getMultiQuery(request)
+        else:
+            conferences = self._getQuery(request)
 
         # need to fetch organiser displayName from profiles
         # get all keys and use get_multi for speed
@@ -695,9 +712,9 @@ class ConferenceApi(remote.Service):
                     val = getattr(save_request, field)
                     if val:
                         setattr(prof, field, str(val))
-                        #if field == 'teeShirtSize':
+                        # if field == 'teeShirtSize':
                         #    setattr(prof, field, str(val).upper())
-                        #else:
+                        # else:
                         #    setattr(prof, field, val)
                         prof.put()
 
