@@ -48,7 +48,6 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
-MEMCACHE_FEATURED_SPEAKER_KEY = "SPEAKER_KEY"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -169,8 +168,9 @@ class ConferenceApi(remote.Service):
         q = q.filter(Session.websafeConferenceKey == wsck)
         for sesh in q:
             if sesh.speaker == request.speaker:
-                memcache.set(
-                    MEMCACHE_FEATURED_SPEAKER_KEY+wsck, request.speaker)
+                taskqueue.add(params={'speaker': request.speaker,
+                              'websafeConferenceKey': wsck},
+                              url='/tasks/set_featured_speaker')
 
         # generate Profile Key based on user ID and Conference
         # ID based on Conference key get Session key from ID
@@ -696,8 +696,7 @@ class ConferenceApi(remote.Service):
                       http_method='GET', name='getFeaturedSpeaker')
     def getFeaturedSpeaker(self, request):
         """Get featured speaker for conference"""
-        featuredSpeaker = memcache.get(
-            MEMCACHE_FEATURED_SPEAKER_KEY+request.websafeConferenceKey)
+        featuredSpeaker = memcache.get(request.websafeConferenceKey)
         if not featuredSpeaker:
             featuredSpeaker = ""
         return StringMessage(data=featuredSpeaker)

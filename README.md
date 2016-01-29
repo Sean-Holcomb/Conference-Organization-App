@@ -44,6 +44,7 @@ The problem is that Google datastore API doesn't support multiple inequality fil
 I implemented this ability by checking queries for multiple inequality filters if they were there, The query is done by a seperate method that makes a query for each filter then
 
 ### Task 4: Add a Task
+Implemented featured speaker functionality using task queue and memcache. Logic for functionality is in main.py while taskqueue call is made in conference.py.
 
 
 [1]: https://developers.google.com/appengine
