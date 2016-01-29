@@ -165,7 +165,7 @@ class Session(ndb.Model):
     typeOfSession = ndb.StringProperty(repeated=True)
     date = ndb.DateProperty()
     startTime = ndb.IntegerProperty()
-    websafeConferenceKey = ndb.StringProperty()
+    websafeConferenceKey = ndb.StringProperty(required=True)
 
 
 class SessionForm(messages.Message):
