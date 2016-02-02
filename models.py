@@ -9,13 +9,12 @@ $Id: models.py,v 1.1 2014/05/24 22:01:10 wesc Exp $
 created/forked from conferences.py by wesc on 2014 may 24
 
 """
-
-__author__ = 'wesc+api@google.com (Wesley Chun)'
-
 import httplib
 import endpoints
 from protorpc import messages
 from google.appengine.ext import ndb
+
+__author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
 class ConflictException(endpoints.ServiceException):
@@ -50,10 +49,12 @@ class ProfileForm(messages.Message):
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
     sessionKeysInWishList = messages.StringField(5, repeated=True)
 
+
 class ProfileForms(messages.Message):
 
     """ProfileForms -- multiple Profile outbound form message"""
     items = messages.MessageField(ProfileForm, 1, repeated=True)
+
 
 class Speaker(ndb.Model):
 
@@ -69,6 +70,7 @@ class SpeakerForm(messages.Message):
     name = messages.StringField(1, required=True)
     bio = messages.StringField(2)
     speakerSessionKeys = messages.StringField(3, repeated=True)
+    websafeKey = messages.StringField(4)
 
 
 class StringMessage(messages.Message):
@@ -151,7 +153,10 @@ class ConferenceQueryForm(messages.Message):
 
 class ConferenceQueryForms(messages.Message):
 
-    """ConferenceQueryForms -- multiple ConferenceQueryForm inbound form message"""
+    """
+    ConferenceQueryForms -- multiple ConferenceQueryForm
+    inbound form message
+    """
     filters = messages.MessageField(ConferenceQueryForm, 1, repeated=True)
 
 
